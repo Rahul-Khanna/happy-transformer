@@ -52,8 +52,8 @@ class TextDataset(Dataset):
         with open(mask_path, encoding="utf-8") as f:
             text = f.read()
         lines = text.split("\n")
-        self.masked_positions = get_masked_position_per_sentence(lines, tokenizer, block_size)
-
+        self.positions_to_mask = get_masked_position_per_sentence(lines, tokenizer, block_size)
+        print(positions_to_mask)
     def __len__(self):
         return len(self.examples)
 
@@ -204,7 +204,7 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
     train_sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(
         train_dataset, sampler=train_sampler, batch_size=batch_size)
-    train_positions_to_mask = train_dataset.positions_to_mask
+    train_positions_to_mask = train_dataset.masked_positions
 
     t_total = len(train_dataloader) // batch_size  # Total Steps
 

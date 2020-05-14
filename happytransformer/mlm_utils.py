@@ -373,9 +373,9 @@ class FinetuneMlm():
         # Start Train
         self.mlm.cuda()
         train_dataset = create_dataset(
-            self.tokenizer, file_path=train_path, train_masked_path)
+            self.tokenizer, file_path=train_path, mask_path=train_masked_path)
         eval_dataset = create_dataset(
-            self.tokenizer, file_path=eval_path, eval_masked_path)
+            self.tokenizer, file_path=eval_path, mask_path=eval_masked_path)
 
         self.mlm, self.tokenizer = train(self.mlm, self.tokenizer,
                                          train_dataset,
@@ -385,7 +385,7 @@ class FinetuneMlm():
                                          lr=self.args["lr"],
                                          adam_epsilon=self.args[
                                              "adam_epsilon"],
-                                         output_dir)
+                                         output_dir=output_dir)
 
         del train_dataset
         del eval_dataset
@@ -394,7 +394,7 @@ class FinetuneMlm():
 
     def evaluate(self, test_path, masked_position_path, batch_size):
         self.mlm.cuda()
-        test_dataset = create_dataset(self.tokenizer, file_path=test_path, masked_position_path)
+        test_dataset = create_dataset(self.tokenizer, file_path=test_path, mask_path=masked_position_path)
         result = evaluate(self.mlm, self.tokenizer, test_dataset,
                           batch_size=batch_size)
         del test_dataset

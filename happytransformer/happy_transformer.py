@@ -508,7 +508,7 @@ class HappyTransformer:
                 "Masked language model training is not available for XLNET")
             sys.exit()
 
-    def train_mwp(self, train_path: str, train_path: str, eval_path: str, train_masked_path: str, 
+    def train_mwp(self, train_path: str, eval_path: str, train_masked_path: str, 
                   eval_masked_path: str, output_dir: str):
         """
         Trains the model with masked language modeling loss.

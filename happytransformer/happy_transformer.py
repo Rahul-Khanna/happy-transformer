@@ -508,7 +508,8 @@ class HappyTransformer:
                 "Masked language model training is not available for XLNET")
             sys.exit()
 
-    def train_mwp(self, train_path: str):
+    def train_mwp(self, train_path: str, train_path: str, eval_path: str, train_masked_path: str, 
+                  eval_masked_path: str, output_dir: str):
         """
         Trains the model with masked language modeling loss.
 
@@ -520,11 +521,12 @@ class HappyTransformer:
         if torch.cuda.is_available():
             if self.mwp_trained and self.mwp_trainer:  # If model is trained
                 self.logger.warning("Training on the already fine-tuned model")
-                self.mwp_trainer.train(train_path)
+                self.mwp_trainer.train(train_path, eval_path, train_masked_path, eval_masked_path, output_dir)
 
             elif self.mwp_trainer and not self.mwp_trained:  # If trainer
                 # exists but isn't trained
-                self.mlm, self.tokenizer = self.mwp_trainer.train(train_path)
+                self.mlm, self.tokenizer = self.mwp_trainer.train(train_path, eval_path, train_masked_path, 
+                                                                  eval_masked_path, output_dir)
                 self.mwp_trained = True
 
             elif not self.mwp_trainer:  # If trainer doesn't exist
@@ -538,7 +540,7 @@ class HappyTransformer:
                 self.gpu_support)
             sys.exit()
 
-    def eval_mwp(self, eval_path: str, batch_size: int = 2):
+    def eval_mwp(self, eval_path: str, masked_position_path: str, batch_size: int = 1):
         """
         Evaluates the masked language model and returns the perplexity and
         the evaluation loss.
@@ -558,6 +560,6 @@ class HappyTransformer:
             self.logger.warning(
                 "You are evaluating on the pretrained model, not the fine-tuned model.")
 
-        results = self.mwp_trainer.evaluate(eval_path, batch_size)
+        results = self.mwp_trainer.evaluate(eval_path, masked_position_path, batch_size)
 
         return results

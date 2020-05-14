@@ -38,7 +38,7 @@ class TextDataset(Dataset):
     Used to turn .txt file into a suitable dataset object
     """
 
-    def __init__(self, tokenizer, file_path, block_size=512):
+    def __init__(self, tokenizer, file_path, mask_path, block_size=512):
         assert os.path.isfile(file_path)
         with open(file_path, encoding="utf-8") as f:
             text = f.read()
@@ -48,6 +48,11 @@ class TextDataset(Dataset):
             tokenized_text = tokenizer.encode(line, max_length=block_size,
                                               add_special_tokens=True, pad_to_max_length=True)  # Get ids from text
             self.examples.append(tokenized_text)
+
+        with open(mask_path, encoding="utf-8") as f:
+            text = f.read()
+        lines = text.split("\n")
+        self.masked_positions = get_masked_position_per_sentence(lines, tokenizer, block_size)
 
     def __len__(self):
         return len(self.examples)
@@ -106,9 +111,82 @@ def mask_tokens(inputs, tokenizer):
     # unchanged
     return inputs, labels
 
+def custom_mask_tokens(inputs, tokenizer, positions_to_mask):
+    """ Prepare masked tokens inputs/labels for masked language modeling
+        Assumes batch-size of 1
+    """
+    labels = inputs.clone()
+    prob_matrix = torch.full(labels.shape, 0.0)
+    masked_positions = [1 if i in positions_to_mask else 0 for i in range(labels.shape[0])]
 
-def train(model, tokenizer, train_dataset, batch_size, lr, adam_epsilon,
-          epochs):
+    probability_matrix.masked_fill_(torch.tensor(
+        masked_positions, dtype=torch.bool), value=1.0)
+    masked_indices = torch.bernoulli(probability_matrix).bool()
+    labels[~masked_indices] = -100  # We only compute loss on masked tokens
+
+    # 80% of the time, we replace masked input tokens with
+    # tokenizer.mask_token ([MASK])
+    indices_replaced = torch.bernoulli(torch.full(
+        labels.shape, 0.8)).bool() & masked_indices
+    inputs[indices_replaced] = tokenizer.convert_tokens_to_ids(
+        tokenizer.mask_token)
+
+    # 10% of the time, we replace masked input tokens with random word
+    indices_random = torch.bernoulli(torch.full(
+        labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
+    random_words = torch.randint(
+        len(tokenizer), labels.shape, dtype=torch.long)
+    inputs[indices_random] = random_words[indices_random]
+
+    return inputs, labels
+
+def get_masked_position_per_sentence(sentences, tokenizer, block_size):
+    """
+        Given a masked sentence returns the position of the mask for each sentence
+    """
+
+    masked_positions = []
+    for sentence in sentences:
+        inputs = tokenizer.encode(sentence, max_length=block_size,
+                                  add_special_tokens=True, pad_to_max_length=True)
+        
+        for i, val in enumerate(inputs):
+            if val == tokenizer.mask_token:
+                masked_positions.append(set([i]))
+
+    return masked_positions
+
+def save_model_checkpoint(model, optimizer, global_step, epoch_info, file_name):
+    """
+        Function to create a checkpoint storing model and optimizer progress,
+        the number of steps taken and the stats so far
+    """
+    output = {
+              "model"       : model.state_dict(),
+              "optimizer"   : optimizer.state_dict(),
+              "global_step" : global_step + 1,
+              "epoch_info" : epoch_info
+            }
+    torch.save(output, file_name)
+
+def eval_and_save_model(output_dir, global_step, epoch_info, model, optimizer, tokenizer):
+    
+    # adds / to output_dir
+    full_output_dir = os.path.join(output_dir, 'save_step_{}'.format(global_step))
+    if not os.path.exists(full_output_dir):
+        os.makedirs(full_output_dir)
+
+    output_model_file = os.path.join(full_output_dir, "checkpoint.pt")
+    info = evaluate(model, tokenizer, eval_dataset, batch_size=1)
+    
+    epoch_info.append(info)
+
+    save_model_checkpoint(model, optimizer, global_step, epoch_info, output_model_file)
+
+    return epoch_info
+
+def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_epsilon,
+          epochs, output_dir):
     """
 
     :param model: Bert Model to train
@@ -126,6 +204,7 @@ def train(model, tokenizer, train_dataset, batch_size, lr, adam_epsilon,
     train_sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(
         train_dataset, sampler=train_sampler, batch_size=batch_size)
+    train_positions_to_mask = train_dataset.positions_to_mask
 
     t_total = len(train_dataloader) // batch_size  # Total Steps
 
@@ -155,34 +234,47 @@ def train(model, tokenizer, train_dataset, batch_size, lr, adam_epsilon,
     model.resize_token_embeddings(len(tokenizer))
     model.zero_grad()
     train_iterator = trange(int(epochs), desc="Epoch")
+    epoch_info = []
+    proceed = False
+    tmp_global_step = 0
     for _ in train_iterator:
         epoch_iterator = tqdm_notebook(train_dataloader, desc="Iteration")
-        for batch in epoch_iterator:
-            inputs, labels = mask_tokens(batch, tokenizer)
-            inputs = inputs.to('cuda')  # Don't bother if you don't have a gpu
-            labels = labels.to('cuda')
+        for i, batch in enumerate(epoch_iterator):
+            
+            if tmp_global_step >= global_step or proceed:
+                    proceed = True
+            else:
+                tmp_global_step += 1
+            
+            if proceed:
+                inputs, labels = custom_mask_tokens(batch, tokenizer, train_positions_to_mask[i])
+                inputs = inputs.to('cuda')  # Don't bother if you don't have a gpu
+                labels = labels.to('cuda')
 
-            outputs = model(inputs, masked_lm_labels=labels)
-            # model outputs are always tuple in transformers (see doc)
-            loss = outputs[0]
+                outputs = model(inputs, masked_lm_labels=labels)
+                # model outputs are always tuple in transformers (see doc)
+                loss = outputs[0]
 
-            loss.backward()
-            tr_loss += loss.item()
+                loss.backward()
+                tr_loss += loss.item()
 
-            # if (step + 1) % 1 == 0: # 1 here is a placeholder for gradient
-            # accumulation steps
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-            optimizer.step()
-            scheduler.step()
-            model.zero_grad()
-            global_step += 1
+                # if (step + 1) % 1 == 0: # 1 here is a placeholder for gradient
+                # accumulation steps
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
+                optimizer.step()
+                scheduler.step()
+                model.zero_grad()
+                global_step += 1
 
-    logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
+        if proceed:
+            epoch_info = eval_and_save_model(output_dir, global_step, epoch_info, model, optimizer, tokenizer)
+            logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
+            tr_loss = 0
 
     return model, tokenizer
 
 
-def create_dataset(tokenizer, file_path, block_size=512):
+def create_dataset(tokenizer, file_path, mask_path, block_size=512):
     """
     Creates a dataset object from file path.
     :param tokenizer: Bert tokenizer to create dataset
@@ -191,7 +283,7 @@ def create_dataset(tokenizer, file_path, block_size=512):
     128, 256, 512
     :return: The dataset
     """
-    dataset = TextDataset(tokenizer, file_path=file_path,
+    dataset = TextDataset(tokenizer, file_path=file_path, mask_path=mask_path,
                           block_size=block_size)
     return dataset
 
@@ -209,6 +301,7 @@ def evaluate(model, tokenizer, eval_dataset, batch_size):
     eval_sampler = SequentialSampler(eval_dataset)  # Same order samplinng
     eval_dataloader = DataLoader(
         eval_dataset, sampler=eval_sampler, batch_size=batch_size)
+    positions_to_mask = eval_dataset.masked_positions
 
     # Eval!
     logger.info("***** Running evaluation *****")
@@ -219,9 +312,10 @@ def evaluate(model, tokenizer, eval_dataset, batch_size):
     model.eval()
 
     # Evaluation loop
-
+    i = 0
     for batch in tqdm_notebook(eval_dataloader, desc='Evaluating'):
-        inputs, labels = mask_tokens(batch, tokenizer)
+        inputs, labels = custom_mask_tokens(batch, tokenizer, positions_to_mask[i])
+        i += 1
         inputs = inputs.to('cuda')
         labels = labels.to('cuda')
 
@@ -274,27 +368,33 @@ class FinetuneMlm():
         self.args = args
         self.logger = logger
 
-    def train(self, train_path):
+    def train(self, train_path, eval_path, train_masked_path, eval_masked_path, output_dir):
         self.mlm.resize_token_embeddings(len(self.tokenizer))
         # Start Train
         self.mlm.cuda()
         train_dataset = create_dataset(
-            self.tokenizer, file_path=train_path)
+            self.tokenizer, file_path=train_path, train_masked_path)
+        eval_dataset = create_dataset(
+            self.tokenizer, file_path=eval_path, eval_masked_path)
+
         self.mlm, self.tokenizer = train(self.mlm, self.tokenizer,
                                          train_dataset,
+                                         eval_dataset,
                                          batch_size=self.args["batch_size"],
                                          epochs=self.args["epochs"],
                                          lr=self.args["lr"],
                                          adam_epsilon=self.args[
-                                             "adam_epsilon"])
+                                             "adam_epsilon"],
+                                         output_dir)
 
         del train_dataset
+        del eval_dataset
         self.mlm.cpu()
         return self.mlm, self.tokenizer
 
-    def evaluate(self, test_path, batch_size):
+    def evaluate(self, test_path, masked_position_path, batch_size):
         self.mlm.cuda()
-        test_dataset = create_dataset(self.tokenizer, file_path=test_path)
+        test_dataset = create_dataset(self.tokenizer, file_path=test_path, masked_position_path)
         result = evaluate(self.mlm, self.tokenizer, test_dataset,
                           batch_size=batch_size)
         del test_dataset

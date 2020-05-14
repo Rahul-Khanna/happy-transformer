@@ -272,7 +272,7 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
                 global_step += 1
 
         if proceed:
-            epoch_info = eval_and_save_model(output_dir, eval_dataset, epoch_info, model, optimizer, tokenizer)
+            epoch_info = eval_and_save_model(output_dir, eval_dataset, global_step, epoch_info, model, optimizer, tokenizer)
             logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
             tr_loss = 0
 

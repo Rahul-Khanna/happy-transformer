@@ -53,7 +53,7 @@ class TextDataset(Dataset):
             text = f.read()
         lines = text.split("\n")
         self.positions_to_mask = get_masked_position_per_sentence(lines, tokenizer, block_size)
-        print(positions_to_mask)
+        print(self.positions_to_mask[0:10])
     def __len__(self):
         return len(self.examples)
 

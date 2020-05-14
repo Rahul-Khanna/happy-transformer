@@ -51,8 +51,8 @@ class TextDataset(Dataset):
 
         with open(mask_path, encoding="utf-8") as f:
             text = f.read()
-        lines = text.split("\n")
-        self.positions_to_mask = get_masked_position_per_sentence(lines, tokenizer, block_size)
+        words = text.split("\n")
+        self.positions_to_mask = get_masked_position_per_sentence(lines, words, tokenizer, block_size)
         print(self.positions_to_mask[0:10])
     def __len__(self):
         return len(self.examples)
@@ -140,19 +140,24 @@ def custom_mask_tokens(inputs, tokenizer, positions_to_mask):
 
     return inputs, labels
 
-def get_masked_position_per_sentence(sentences, tokenizer, block_size):
+def get_masked_position_per_sentence(sentences, words_to_mask, tokenizer, block_size):
     """
         Given a masked sentence returns the position of the mask for each sentence
     """
 
     masked_positions = []
-    for sentence in sentences:
-        inputs = tokenizer.encode(sentence, max_length=block_size,
+    for i, sentence in enumerate(sentences):
+        tokens = tokenizer.tokenize(sentence, max_length=block_size,
                                   add_special_tokens=True, pad_to_max_length=True)
         
-        for i, val in enumerate(inputs):
-            if val == tokenizer.mask_token:
-                masked_positions.append(set([i]))
+        words_to_mask_sent = words_to_mask[i].split(",")
+        masked_positions_sent = []
+        for j, val in enumerate(inputs):
+            for word in words_to_mask_sent:
+                if word in val:
+                    masked_positions_sent.append(j)
+
+        masked_positions.append(set(masked_positions_sent))
 
     return masked_positions
 
@@ -204,7 +209,7 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
     train_sampler = RandomSampler(train_dataset)
     train_dataloader = DataLoader(
         train_dataset, sampler=train_sampler, batch_size=batch_size)
-    train_positions_to_mask = train_dataset.masked_positions
+    train_positions_to_mask = train_dataset.positions_to_mask
 
     t_total = len(train_dataloader) // batch_size  # Total Steps
 

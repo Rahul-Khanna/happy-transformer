@@ -45,7 +45,7 @@ class TextDataset(Dataset):
         lines = text.split("\n")
         self.examples = []
         for line in lines:
-            tokenized_text = tokenizer.encode_plus(line, max_length=block_size,
+            tokenized_text = tokenizer.encode(line, max_length=block_size,
                                               add_special_tokens=True, pad_to_max_length=True)  # Get ids from text
             self.examples.append(tokenized_text)
 
@@ -147,7 +147,7 @@ def get_masked_position_per_sentence(sentences, tokenizer, block_size):
 
     masked_positions = []
     for sentence in sentences:
-        inputs = tokenizer.encode_plus(sentence, max_length=block_size,
+        inputs = tokenizer.encode(sentence, max_length=block_size,
                                   add_special_tokens=True, pad_to_max_length=True)
         
         for i, val in enumerate(inputs):

@@ -151,7 +151,6 @@ def get_masked_position_per_sentence(sentences, words_to_mask, tokenizer, block_
                                   add_special_tokens=True, pad_to_max_length=True)
         
         words_to_mask_sent = words_to_mask[i].split(",")
-        print(words_to_mask_sent)
         masked_positions_sent = []
         for j, val in enumerate(tokens):
             for word in words_to_mask_sent:
@@ -175,7 +174,7 @@ def save_model_checkpoint(model, optimizer, global_step, epoch_info, file_name):
             }
     torch.save(output, file_name)
 
-def eval_and_save_model(output_dir, global_step, epoch_info, model, optimizer, tokenizer):
+def eval_and_save_model(output_dir, eval_dataset, global_step, epoch_info, model, optimizer, tokenizer):
     
     # adds / to output_dir
     full_output_dir = os.path.join(output_dir, 'save_step_{}'.format(global_step))
@@ -273,7 +272,7 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
                 global_step += 1
 
         if proceed:
-            epoch_info = eval_and_save_model(output_dir, global_step, epoch_info, model, optimizer, tokenizer)
+            epoch_info = eval_and_save_model(output_dir, eval_dataset, epoch_info, model, optimizer, tokenizer)
             logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
             tr_loss = 0
 

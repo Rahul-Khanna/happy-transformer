@@ -116,7 +116,7 @@ def custom_mask_tokens(inputs, tokenizer, positions_to_mask):
         Assumes batch-size of 1
     """
     labels = inputs.clone()
-    prob_matrix = torch.full(labels.shape, 0.0)
+    probability_matrix = torch.full(labels.shape, 0.0)
     masked_positions = [1 if i in positions_to_mask else 0 for i in range(labels.shape[0])]
 
     probability_matrix.masked_fill_(torch.tensor(
@@ -151,6 +151,7 @@ def get_masked_position_per_sentence(sentences, words_to_mask, tokenizer, block_
                                   add_special_tokens=True, pad_to_max_length=True)
         
         words_to_mask_sent = words_to_mask[i].split(",")
+        print(words_to_mask_sent)
         masked_positions_sent = []
         for j, val in enumerate(tokens):
             for word in words_to_mask_sent:
@@ -247,7 +248,7 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
         for i, batch in enumerate(epoch_iterator):
             
             if tmp_global_step >= global_step or proceed:
-                    proceed = True
+                proceed = True
             else:
                 tmp_global_step += 1
             

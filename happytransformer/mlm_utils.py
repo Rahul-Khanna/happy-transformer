@@ -152,7 +152,7 @@ def get_masked_position_per_sentence(sentences, words_to_mask, tokenizer, block_
         
         words_to_mask_sent = words_to_mask[i].split(",")
         masked_positions_sent = []
-        for j, val in enumerate(inputs):
+        for j, val in enumerate(tokens):
             for word in words_to_mask_sent:
                 if word in val:
                     masked_positions_sent.append(j)

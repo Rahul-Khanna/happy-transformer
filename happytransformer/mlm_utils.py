@@ -306,7 +306,7 @@ def evaluate(model, tokenizer, eval_dataset, batch_size):
     eval_sampler = SequentialSampler(eval_dataset)  # Same order samplinng
     eval_dataloader = DataLoader(
         eval_dataset, sampler=eval_sampler, batch_size=batch_size)
-    positions_to_mask = eval_dataset.masked_positions
+    positions_to_mask = eval_dataset.positions_to_mask
 
     # Eval!
     logger.info("***** Running evaluation *****")

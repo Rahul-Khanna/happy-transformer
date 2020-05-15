@@ -247,6 +247,7 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
                 tmp_global_step += 1
             
             if proceed:
+                print(train_positions_to_mask[i])
                 inputs, labels = custom_mask_tokens(batch, tokenizer, train_positions_to_mask[i])
                 print(inputs)
                 print(labels)

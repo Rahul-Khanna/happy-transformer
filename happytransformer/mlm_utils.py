@@ -248,12 +248,12 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
             
             if proceed:
                 inputs, labels = custom_mask_tokens(batch, tokenizer, train_positions_to_mask[i])
-                inputs = inputs.to('cuda')  # Don't bother if you don't have a gpu
-                labels = labels.to('cuda')
                 print(inputs)
                 print(labels)
-                print(outputs)
+                inputs = inputs.to('cuda')  # Don't bother if you don't have a gpu
+                labels = labels.to('cuda')
                 outputs = model(inputs, masked_lm_labels=labels)
+                print(outputs)
                 # model outputs are always tuple in transformers (see doc)
                 loss = outputs[0]
                 print(loss.item())

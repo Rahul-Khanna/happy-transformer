@@ -116,8 +116,11 @@ def custom_mask_tokens(inputs, tokenizer, positions_to_mask):
         Assumes batch-size of 1
     """
     labels = inputs.clone()
+    probability_matrix = torch.full(labels.shape, 0.0)
     masked_positions = [1.0 if i in positions_to_mask else 0.0 for i in range(labels.shape[1])]
-    masked_indices = torch.bernoulli(torch.tensor(masked_positions)).bool()
+    probability_matrix.masked_fill_(torch.tensor(
+        masked_positions, dtype=torch.bool), value=1.0)
+    masked_indices = torch.bernoulli(probability_matrix).bool()
     labels[~masked_indices] = -100  # We only compute loss on masked tokens
 
     # 80% of the time, we replace masked input tokens with

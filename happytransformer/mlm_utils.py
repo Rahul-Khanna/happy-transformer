@@ -257,15 +257,16 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
                 outputs = model(inputs, masked_lm_labels=labels)
                 # model outputs are always tuple in transformers (see doc)
                 loss = outputs[0]
-                print(loss.item())
+
+                loss.backward()
                 tr_loss += loss.item()
 
                 # if (step + 1) % 1 == 0: # 1 here is a placeholder for gradient
                 # accumulation steps
-                optimizer.zero_grad()
-                loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
                 optimizer.step()
+                scheduler.step()
+                model.zero_grad()
                 global_step += 1
 
         if proceed:

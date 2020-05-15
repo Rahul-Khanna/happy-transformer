@@ -116,7 +116,6 @@ def custom_mask_tokens(inputs, tokenizer, positions_to_mask):
         Assumes batch-size of 1
     """
     labels = inputs.clone()
-    probability_matrix = torch.full(labels.shape, 0.0)
     masked_positions = [1.0 if i in positions_to_mask else 0.0 for i in range(labels.shape[0])]
     masked_indices = torch.bernoulli(torch.tensor(masked_positions)).bool()
     labels[~masked_indices] = -100  # We only compute loss on masked tokens
@@ -234,7 +233,6 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
     global_step = 0
     tr_loss, logging_loss = 0.0, 0.0
     model.resize_token_embeddings(len(tokenizer))
-    model.zero_grad()
     train_iterator = trange(int(epochs), desc="Epoch")
     epoch_info = []
     proceed = False
@@ -256,21 +254,24 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
                 outputs = model(inputs, masked_lm_labels=labels)
                 # model outputs are always tuple in transformers (see doc)
                 loss = outputs[0]
-
-                loss.backward()
+                print(loss.item())
                 tr_loss += loss.item()
 
                 # if (step + 1) % 1 == 0: # 1 here is a placeholder for gradient
                 # accumulation steps
+                optimizer.zero_grad()
+                loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
                 optimizer.step()
-                scheduler.step()
-                model.zero_grad()
                 global_step += 1
 
         if proceed:
+            model.eval()
+            torch.set_grad_enabled(False)
             epoch_info = eval_and_save_model(output_dir, eval_dataset, global_step, epoch_info, model, optimizer, tokenizer)
             logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
+            model.train() 
+            torch.set_grad_enabled(True)
             tr_loss = 0
 
     return model, tokenizer

@@ -116,11 +116,8 @@ def custom_mask_tokens(inputs, tokenizer, positions_to_mask):
         Assumes batch-size of 1
     """
     labels = inputs.clone()
-    print(labels.shape)
-    masked_positions = [1.0 if i in positions_to_mask else 0.0 for i in range(labels.shape)]
-    print(masked_positions)
+    masked_positions = [1.0 if i in positions_to_mask else 0.0 for i in range(labels.shape[1])]
     masked_indices = torch.bernoulli(torch.tensor(masked_positions)).bool()
-    print(masked_indices)
     labels[~masked_indices] = -100  # We only compute loss on masked tokens
 
     # 80% of the time, we replace masked input tokens with
@@ -233,6 +230,7 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
     logger.info("  Batch size = %d", batch_size)
 
     model.train()
+    torch.set_grad_enabled(True)
     global_step = 0
     tr_loss, logging_loss = 0.0, 0.0
     model.resize_token_embeddings(len(tokenizer))
@@ -250,14 +248,10 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
                 tmp_global_step += 1
             
             if proceed:
-                print(train_positions_to_mask[i])
                 inputs, labels = custom_mask_tokens(batch, tokenizer, train_positions_to_mask[i])
-                print(inputs)
-                print(labels)
                 inputs = inputs.to('cuda')  # Don't bother if you don't have a gpu
                 labels = labels.to('cuda')
                 outputs = model(inputs, masked_lm_labels=labels)
-                print(outputs)
                 # model outputs are always tuple in transformers (see doc)
                 loss = outputs[0]
                 print(loss.item())

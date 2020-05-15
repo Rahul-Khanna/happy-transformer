@@ -116,7 +116,8 @@ def custom_mask_tokens(inputs, tokenizer, positions_to_mask):
         Assumes batch-size of 1
     """
     labels = inputs.clone()
-    masked_positions = [1.0 if i in positions_to_mask else 0.0 for i in range(labels.shape[0])]
+    print(labels.shape)
+    masked_positions = [1.0 if i in positions_to_mask else 0.0 for i in range(labels.shape)]
     print(masked_positions)
     masked_indices = torch.bernoulli(torch.tensor(masked_positions)).bool()
     print(masked_indices)

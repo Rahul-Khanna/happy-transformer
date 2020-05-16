@@ -232,8 +232,6 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
     logger.info("  Num examples = %d", len(train_dataset))
     logger.info("  Batch size = %d", batch_size)
 
-    model.train()
-    torch.set_grad_enabled(True)
     global_step = 0
     tr_loss, logging_loss = 0.0, 0.0
     model.resize_token_embeddings(len(tokenizer))
@@ -243,39 +241,38 @@ def train(model, tokenizer, train_dataset, eval_dataset, batch_size, lr, adam_ep
     tmp_global_step = 0
     for _ in train_iterator:
         epoch_iterator = tqdm_notebook(train_dataloader, desc="Iteration")
-        for i, batch in enumerate(epoch_iterator):
-            
-            if tmp_global_step >= global_step or proceed:
-                proceed = True
-            else:
-                tmp_global_step += 1
-            
-            if proceed:
-                inputs, labels = custom_mask_tokens(batch, tokenizer, train_positions_to_mask[i])
-                inputs = inputs.to('cuda')  # Don't bother if you don't have a gpu
-                labels = labels.to('cuda')
-                outputs = model(inputs, masked_lm_labels=labels)
-                # model outputs are always tuple in transformers (see doc)
-                loss = outputs[0]
+        model.train()
+        with torch.set_grad_enabled(True):
+            for i, batch in enumerate(epoch_iterator):
+                
+                if tmp_global_step >= global_step or proceed:
+                    proceed = True
+                else:
+                    tmp_global_step += 1
+                
+                if proceed:
+                    inputs, labels = custom_mask_tokens(batch, tokenizer, train_positions_to_mask[i])
+                    inputs = inputs.to('cuda')  # Don't bother if you don't have a gpu
+                    labels = labels.to('cuda')
+                    outputs = model(inputs, masked_lm_labels=labels)
+                    # model outputs are always tuple in transformers (see doc)
+                    loss = outputs[0]
 
-                loss.backward()
-                tr_loss += loss.item()
+                    loss.backward()
+                    tr_loss += loss.item()
 
-                # if (step + 1) % 1 == 0: # 1 here is a placeholder for gradient
-                # accumulation steps
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-                optimizer.step()
-                scheduler.step()
-                model.zero_grad()
-                global_step += 1
+                    # if (step + 1) % 1 == 0: # 1 here is a placeholder for gradient
+                    # accumulation steps
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
+                    optimizer.step()
+                    scheduler.step()
+                    model.zero_grad()
+                    global_step += 1
 
         if proceed:
-            model.eval()
-            torch.set_grad_enabled(False)
-            epoch_info = eval_and_save_model(output_dir, eval_dataset, global_step, epoch_info, model, optimizer, tokenizer)
+            with torch.set_grad_enabled(False):
+                epoch_info = eval_and_save_model(output_dir, eval_dataset, global_step, epoch_info, model, optimizer, tokenizer)
             logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
-            model.train() 
-            torch.set_grad_enabled(True)
             tr_loss = 0
 
     return model, tokenizer

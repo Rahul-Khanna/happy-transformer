@@ -1,6 +1,6 @@
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="6"
+os.environ["CUDA_VISIBLE_DEVICES"]="5"
 import sys
 sys.path.append('../')
 from happytransformer import HappyROBERTA
@@ -16,7 +16,7 @@ word_prediction_args = {
 
 "epochs": 20,
 
-"lr": 1e-4,
+"lr": 1e-5,
 
 "adam_epsilon": 1e-6
 

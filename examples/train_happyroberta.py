@@ -4,8 +4,8 @@ os.environ["CUDA_VISIBLE_DEVICES"]="5"
 import sys
 sys.path.append('../')
 from happytransformer import HappyROBERTA
-if len(sys.argv):
-    model_name = sys.argv[0]
+if len(sys.argv) > 1:
+    model_name = sys.argv[1]
 else:
     model_name = "roberta-base"
 
